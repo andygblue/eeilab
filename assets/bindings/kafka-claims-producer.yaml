@@ -1,0 +1,16 @@
+apiVersion: integration.ibm.com/v1beta1
+kind: IntegrationBinding
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: integrationbinding
+    event-enabled-insurance.eei.canvas: 'true'
+  name: kafka-claims-producer
+  namespace: eei
+spec:
+  from:
+    kind: KafkaUser
+    name: claim-status-producer
+  to:
+    - accountName: claimsproducer
+      kind: Configuration
+      name: claimconfig

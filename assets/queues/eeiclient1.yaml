@@ -1,0 +1,15 @@
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingChannel
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: messagingchannel
+    event-enabled-insurance.eei.canvas: 'true'
+  name: eeiclient1
+  namespace: eei
+spec:
+  channel:
+    type: ServerConnMTLS
+  messagingServer:
+    name: eei
+  sniRoute:
+    enabled: true

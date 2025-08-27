@@ -1,0 +1,19 @@
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingServer
+metadata:
+  labels:
+    backup.integration.ibm.com/component: messagingserver
+    event-enabled-insurance.eei.canvas: 'true'
+  name: eei
+  namespace: eei
+spec:
+  license:
+    accept: true
+    license: L-QYVA-B365MB
+    use: CloudPakForIntegrationProduction
+  queueManager:
+    availability:
+      type: SingleInstance
+    storage:
+      defaultClass: block-storage
+  version: 16.1.1

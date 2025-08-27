@@ -1,0 +1,26 @@
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingUser
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: messaginguser
+    event-enabled-insurance.eei.canvas: 'true'
+  name: claimput
+  namespace: eei
+spec:
+  configurations:
+    - accountName: eeiclaimsput
+      name: claimconfig
+  designerAuthorings:
+    - accountName: eeiclaimsput
+      name: demodesigner
+  user:
+    channel:
+      name: eeiclient1
+    queues:
+      - auth:
+          - BROWSE
+          - GET
+          - INQ
+          - PUT
+          - PASSALL
+        name: newclaims

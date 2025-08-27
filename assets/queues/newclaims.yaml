@@ -1,0 +1,13 @@
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingQueue
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: messagingqueue
+    event-enabled-insurance.eei.canvas: 'true'
+  name: newclaims
+  namespace: eei
+spec:
+  messagingServer:
+    name: eei
+  queue:
+    type: Local

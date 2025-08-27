@@ -1,0 +1,13 @@
+apiVersion: eventstreams.ibm.com/v1beta2
+kind: KafkaTopic
+metadata:
+  labels:
+    event-enabled-insurance.eei.canvas: 'true'
+    eventstreams.ibm.com/cluster: eeikafka
+  name: claimstatus
+  namespace: eei
+spec:
+  config:
+    min.insync.replicas: '1'
+  partitions: 1
+  replicas: 1
