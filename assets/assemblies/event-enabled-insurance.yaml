@@ -1,0 +1,395 @@
+apiVersion: integration.ibm.com/v1beta1
+kind: IntegrationAssembly
+metadata:
+  labels:
+    backup.integration.ibm.com/component: integrationassembly
+  name: event-enabled-insurance
+  namespace: eei
+spec:
+  independentResources:
+    selector:
+      matchLabels:
+        event-enabled-insurance.eei.canvas: 'true'
+  managedInstances:
+    list: []
+  managedIntegrations:
+    list: []
+---
+apiVersion: appconnect.ibm.com/v1beta1
+kind: Configuration
+metadata:
+  annotations:
+    configuration-last-updated: '1742406964'
+  labels:
+    backup.appconnect.ibm.com/component: configuration
+    bcdr-candidate: t
+    event-enabled-insurance.eei.canvas: 'true'
+  name: claimconfig
+  namespace: eei
+spec:
+  secretName: claimconfig-wv58j
+  type: accounts
+  version: 13.0.2.1-r1
+---
+apiVersion: eventstreams.ibm.com/v1beta2
+kind: EventStreams
+metadata:
+  labels:
+    backup.eventstreams.ibm.com/component: eventstreams
+    event-enabled-insurance.eei.canvas: 'true'
+  name: eeikafka
+  namespace: eei
+spec:
+  adminApi: {}
+  adminUI:
+    authentication:
+      - type: integrationKeycloak
+  apicurioRegistry: {}
+  collector: {}
+  license:
+    accept: true
+    license: L-QYVA-B365MB
+    use: CloudPakForIntegrationProduction
+  restProducer: {}
+  strimziOverrides:
+    kafka:
+      authorization:
+        type: simple
+      config:
+        default.replication.factor: 1
+        inter.broker.protocol.version: '3.8'
+        log.cleaner.threads: 6
+        min.insync.replicas: 2
+        num.io.threads: 24
+        num.network.threads: 9
+        num.replica.fetchers: 1
+        offsets.topic.replication.factor: 1
+      listeners:
+        - authentication:
+            type: scram-sha-512
+          name: external
+          port: 9094
+          tls: true
+          type: route
+        - authentication:
+            type: tls
+          name: tls
+          port: 9093
+          tls: true
+          type: internal
+      metricsConfig:
+        type: jmxPrometheusExporter
+        valueFrom:
+          configMapKeyRef:
+            key: kafka-metrics-config.yaml
+            name: minimal-prod-metrics-config
+      replicas: 1
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 2048Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      storage:
+        class: block-storage
+        size: 4Gi
+        type: persistent-claim
+    zookeeper:
+      metricsConfig:
+        type: jmxPrometheusExporter
+        valueFrom:
+          configMapKeyRef:
+            key: zookeeper-metrics-config.yaml
+            name: minimal-prod-metrics-config
+      replicas: 1
+      storage:
+        class: block-storage
+        size: 2Gi
+        type: persistent-claim
+  version: latest
+---
+apiVersion: integration.ibm.com/v1beta1
+kind: IntegrationBinding
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: integrationbinding
+    event-enabled-insurance.eei.canvas: 'true'
+  name: kafka-claims-consumer
+  namespace: eei
+spec:
+  from:
+    kind: KafkaUser
+    name: claim-status-consumer
+  to:
+    - accountName: claimsconsumer
+      kind: Configuration
+      name: claimconfig
+---
+apiVersion: integration.ibm.com/v1beta1
+kind: IntegrationBinding
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: integrationbinding
+    event-enabled-insurance.eei.canvas: 'true'
+  name: kafka-claims-producer
+  namespace: eei
+spec:
+  from:
+    kind: KafkaUser
+    name: claim-status-producer
+  to:
+    - accountName: claimsproducer
+      kind: Configuration
+      name: claimconfig
+---
+apiVersion: appconnect.ibm.com/v1beta1
+kind: IntegrationRuntime
+metadata:
+  annotations:
+    appconnect.ibm.com/updating: 'false'
+  labels:
+    appconnect.ibm.com/designerapiflow: 'true'
+    appconnect.ibm.com/designereventflow: 'false'
+    appconnect.ibm.com/toolkitflow: 'false'
+    event-enabled-insurance.eei.canvas: 'true'
+  name: claimsapi
+  namespace: eei
+spec:
+  barURL:
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeiManageClaims.bar
+  configurations:
+    - barauth-empty
+    - enable-cache
+    - default-agentx
+    - claimconfig
+    - claimsapi-ir-adminssl
+  license:
+    accept: true
+    license: L-KPRV-AUG9NC
+    use: CloudPakForIntegrationNonProductionFREE
+  logFormat: basic
+  version: '13.0'
+---
+apiVersion: appconnect.ibm.com/v1beta1
+kind: IntegrationRuntime
+metadata:
+  annotations:
+    appconnect.ibm.com/updating: 'false'
+  labels:
+    appconnect.ibm.com/designerapiflow: 'false'
+    appconnect.ibm.com/designereventflow: 'true'
+    appconnect.ibm.com/toolkitflow: 'true'
+    event-enabled-insurance.eei.canvas: 'true'
+  name: processclaims
+  namespace: eei
+spec:
+  barURL:
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeicaching.bar
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeiUpdateClaimCache.bar
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeiClaimProcessor.bar
+  configurations:
+    - barauth-empty
+    - enable-cache
+    - default-agentx
+    - claimconfig
+    - processclaims-ir-adminssl
+  license:
+    accept: true
+    license: L-KPRV-AUG9NC
+    use: CloudPakForIntegrationNonProductionFREE
+  logFormat: basic
+  template:
+    spec:
+      metadata:
+        annotations:
+          configuration-last-updated: claimconfig1742406944
+  version: '13.0'
+---
+apiVersion: eventstreams.ibm.com/v1beta2
+kind: KafkaTopic
+metadata:
+  labels:
+    event-enabled-insurance.eei.canvas: 'true'
+    eventstreams.ibm.com/cluster: eeikafka
+  name: claimstatus
+  namespace: eei
+spec:
+  config:
+    min.insync.replicas: '1'
+  partitions: 1
+  replicas: 1
+---
+apiVersion: eventstreams.ibm.com/v1beta2
+kind: KafkaUser
+metadata:
+  labels:
+    event-enabled-insurance.eei.canvas: 'true'
+    eventstreams.ibm.com/cluster: eeikafka
+  name: claim-status-consumer
+  namespace: eei
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    acls:
+      - operations:
+          - Read
+        resource:
+          name: __schema_
+          patternType: prefix
+          type: topic
+      - operations:
+          - Read
+        resource:
+          name: claimstatus
+          type: topic
+    type: simple
+---
+apiVersion: eventstreams.ibm.com/v1beta2
+kind: KafkaUser
+metadata:
+  labels:
+    event-enabled-insurance.eei.canvas: 'true'
+    eventstreams.ibm.com/cluster: eeikafka
+  name: claim-status-producer
+  namespace: eei
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    acls:
+      - operations:
+          - Read
+        resource:
+          name: __schema_
+          patternType: prefix
+          type: topic
+      - operations:
+          - Read
+          - Write
+          - Create
+          - Delete
+          - Alter
+          - Describe
+          - All
+        resource:
+          name: claimstatus
+          type: topic
+    type: simple
+---
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingChannel
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: messagingchannel
+    event-enabled-insurance.eei.canvas: 'true'
+  name: eeiclient1
+  namespace: eei
+spec:
+  channel:
+    type: ServerConnMTLS
+  messagingServer:
+    name: eei
+  sniRoute:
+    enabled: true
+---
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingQueue
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: messagingqueue
+    event-enabled-insurance.eei.canvas: 'true'
+  name: newclaims
+  namespace: eei
+spec:
+  messagingServer:
+    name: eei
+  queue:
+    type: Local
+---
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingServer
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: messagingserver
+    event-enabled-insurance.eei.canvas: 'true'
+  name: eei
+  namespace: eei
+spec:
+  license:
+    accept: true
+    license: L-QYVA-B365MB
+    use: CloudPakForIntegrationProduction
+  queueManager:
+    availability:
+      type: SingleInstance
+    storage:
+      defaultClass: block-storage
+  version: 16.1.1
+---
+apiVersion: integration.ibm.com/v1beta1
+kind: MessagingUser
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: messaginguser
+    event-enabled-insurance.eei.canvas: 'true'
+  name: claimput
+  namespace: eei
+spec:
+  configurations:
+    - accountName: eeiclaimsput
+      name: claimconfig
+  designerAuthorings:
+    - accountName: eeiclaimsput
+      name: demodesigner
+  user:
+    channel:
+      name: eeiclient1
+    queues:
+      - auth:
+          - BROWSE
+          - GET
+          - INQ
+          - PUT
+          - PASSALL
+        name: newclaims
+---
+apiVersion: apiconnect.ibm.com/v1beta1
+kind: Product
+metadata:
+  labels:
+    backup.apiconnect.ibm.com/component: product
+    event-enabled-insurance.eei.canvas: 'true'
+  name: eei-claim-product
+  namespace: eei
+spec:
+  apis:
+    integrationRuntimes:
+      - name: claimsapi
+  definition:
+    info:
+      description: EEI Demo Product
+      name: eei-claim-product
+      summary: EEI Demo Product
+      title: This is the EEI demo
+      version: '1.0'
+    plans:
+      default-plan:
+        approval: false
+        description: Default Plan
+        rate-limits:
+          default:
+            value: 100/1hour
+        title: Default Plan
+    product: 1.0.0
+  share:
+    apim:
+      catalog: main-demo-catalog
+      credentialsSecret: apim-credentials
+      providerOrg: main-demo
+  state: Published
