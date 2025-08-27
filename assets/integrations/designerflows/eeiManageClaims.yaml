@@ -1,0 +1,454 @@
+$integration: http://ibm.com/appconnect/integration/v2/integrationFile
+integration:
+  type: api
+  trigger-interfaces:
+    trigger-interface-1:
+      triggers:
+        createClaim:
+          assembly:
+            $ref: '#/integration/assemblies/assembly-1'
+          input-context:
+            data: createClaim
+          output-context:
+            data: createClaim
+        retrieveClaim:
+          assembly:
+            $ref: '#/integration/assemblies/assembly-2'
+          input-context:
+            data: retrieveClaim
+          output-context:
+            data: retrieveClaim
+      options:
+        resources:
+          - business-object: claim
+            triggers:
+              create: createClaim
+              retrieve: retrieveClaim
+            model:
+              $ref: '#/models/claim'
+      type: api-trigger
+  action-interfaces:
+    action-interface-1:
+      type: api-action
+      business-object: request
+      connector-type: iiboc
+      actions:
+        INVOKEACTION: {}
+      account-name: Account 2
+    action-interface-2:
+      type: api-action
+      business-object: request
+      connector-type: iiboc
+      account-name: Account 2
+      actions:
+        INVOKEACTION: {}
+    action-interface-3:
+      type: api-action
+      business-object: message
+      connector-type: mq
+      account-name: eeiclaimsput
+      actions:
+        PUTMESSAGE: {}
+    action-interface-4:
+      type: api-action
+      business-object: message
+      connector-type: kafka
+      account-name: claimsproducer
+      actions:
+        CREATE: {}
+  assemblies:
+    assembly-1:
+      assembly:
+        execute:
+          - set-variable:
+              map:
+                $map: http://ibm.com/appconnect/map/v1
+                customSchemas:
+                  properties.`variable`:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      firstName:
+                        type: string
+                      lastName:
+                        type: string
+                      email:
+                        type: string
+                      licensePlate:
+                        type: string
+                      damageDescription:
+                        type: string
+                      claimStatus:
+                        type: string
+                      claimStatusDescription:
+                        type: string
+                input:
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+                  - variable: Request
+                    $ref: '#/trigger/payload'
+                mappings:
+                  - variable:
+                      mappings:
+                        - claimStatus:
+                            template: Received
+                        - claimStatusDescription:
+                            template: >-
+                              We have received your claim through our API - it
+                              is being forwarded to our claims system
+                        - damageDescription:
+                            template: '{{$Request.damageDescription}}'
+                        - email:
+                            template: '{{$Request.email}}'
+                        - firstName:
+                            template: '{{$Request.firstName}}'
+                        - id:
+                            template: '{{$Request.id}}'
+                        - lastName:
+                            template: '{{$Request.lastName}}'
+                        - licensePlate:
+                            template: '{{$Request.licensePlate}}'
+              name: Set variable
+          - custom-action:
+              name: Callable flow Invoke
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-1'
+              action: INVOKEACTION
+              map:
+                customSchemas: {}
+                mappings:
+                  - application:
+                      template: claimCache
+                  - endpoint:
+                      template: storeClaimCache
+                  - message:
+                      expression: '$Setvariable.variable '
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Setvariable
+                    $ref: '#/node-output/Set variable/response/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+                  - variable: Request
+                    $ref: '#/trigger/payload'
+          - custom-action:
+              name: IBM MQ Put message on a queue
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-3'
+              action: PUTMESSAGE
+              map:
+                mappings:
+                  - message:
+                      template: '{{$Setvariable.variable}}'
+                  - messageType:
+                      template: TEXT
+                  - queueName:
+                      template: newclaims
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Setvariable
+                    $ref: '#/node-output/Set variable/response/payload'
+                  - variable: CallableflowInvoke
+                    $ref: '#/node-output/Callable flow Invoke/response/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+                  - variable: Request
+                    $ref: '#/trigger/payload'
+          - create-action:
+              name: Kafka Send message
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-4'
+              map:
+                mappings:
+                  - Payload:
+                      format:
+                        type: avro
+                        options:
+                          dynamicSchema:
+                            id: 1
+                            schemaLocation: AVRO_SCHEMA_REGISTRY
+                            schemaName: claim
+                            schemaRegistryName: default
+                            schemaVersion: '1'
+                      mappings:
+                        - claimStatus:
+                            template: '{{$Setvariable.variable.claimStatus}}'
+                        - claimStatusDescription:
+                            template: '{{$Setvariable.variable.claimStatusDescription}}'
+                        - damageDescription:
+                            template: '{{$Setvariable.variable.damageDescription}}'
+                        - email:
+                            template: '{{$Setvariable.variable}}'
+                        - firstName:
+                            template: '{{$Setvariable.variable.firstName}}'
+                        - id:
+                            template: '{{$Setvariable.variable.id}}'
+                        - lastName:
+                            template: '{{$Setvariable.variable.lastName}}'
+                        - licensePlate:
+                            template: '{{$Setvariable.variable.licensePlate}}'
+                  - Topic:
+                      template: claimstatus
+                  - key:
+                      template: '{{$Setvariable.variable.id}}'
+                stringFormatSchemas:
+                  properties.`Payload`:
+                    $schema: http://json-schema.org/draft-04/schema#
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      firstName:
+                        type: string
+                      lastName:
+                        type: string
+                      email:
+                        type: string
+                      licensePlate:
+                        type: string
+                      damageDescription:
+                        type: string
+                      claimStatus:
+                        type: string
+                      claimStatusDescription:
+                        type: string
+                    required:
+                      - id
+                      - firstName
+                      - lastName
+                      - email
+                      - licensePlate
+                      - damageDescription
+                      - claimStatus
+                      - claimStatusDescription
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Setvariable
+                    $ref: '#/node-output/Set variable/response/payload'
+                  - variable: CallableflowInvoke
+                    $ref: '#/node-output/Callable flow Invoke/response/payload'
+                  - variable: IBMMQPutmessageonaqueue
+                    $ref: >-
+                      #/node-output/IBM MQ Put message on a
+                      queue/response/payload
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+                  - variable: Request
+                    $ref: '#/trigger/payload'
+          - response:
+              name: response
+              reply-maps:
+                - title: claim successfully created
+                  status-code: 201
+                  map:
+                    $map: http://ibm.com/appconnect/map/v1
+                    input:
+                      - variable: Setvariable
+                        $ref: '#/node-output/Set variable/response/payload'
+                      - variable: CallableflowInvoke
+                        $ref: '#/node-output/Callable flow Invoke/response/payload'
+                      - variable: flowDetails
+                        $ref: '#/flowDetails'
+                      - variable: Request
+                        $ref: '#/trigger/payload'
+                    mappings:
+                      - claimStatus:
+                          template: '{{$Setvariable.variable.claimStatus}}'
+                      - claimStatusDescription:
+                          template: '{{$Setvariable.variable.claimStatusDescription}}'
+                      - damageDescription:
+                          template: '{{$Setvariable.variable.damageDescription}}'
+                      - email:
+                          template: '{{$Setvariable.variable.email}}'
+                      - firstName:
+                          template: '{{$Setvariable.variable.firstName}}'
+                      - id:
+                          template: '{{$Setvariable.variable.id}}'
+                      - lastName:
+                          template: '{{$Setvariable.variable.lastName}}'
+                      - licensePlate:
+                          template: '{{$Setvariable.variable.licensePlate}}'
+    assembly-2:
+      assembly:
+        execute:
+          - custom-action:
+              name: Callable flow Invoke 2
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-2'
+              action: INVOKEACTION
+              map:
+                mappings:
+                  - application:
+                      template: claimCache
+                  - endpoint:
+                      template: retrieveClaimCache
+                  - message:
+                      mappings:
+                        - id:
+                            template: '{{$api.id}}'
+                customSchemas:
+                  properties.`message`:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+                  - variable: api
+                    $ref: '#/trigger/api/parameters'
+          - parse:
+              parse-format: json
+              source:
+                template: '{{$CallableflowInvoke2.message}}'
+                input:
+                  - variable: CallableflowInvoke2
+                    $ref: '#/node-output/Callable flow Invoke 2/response/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+                  - variable: api
+                    $ref: '#/trigger/api/parameters'
+              sample-data: >-
+                {
+
+                "id":"6601530880819200",
+
+                "firstName":"Bobby",
+
+                "lastName":"Borselli",
+
+                "licensePlate":"wimto",
+
+                "damageDescription":"49",
+
+                "claimStatus":"anomecidji",
+
+                "claimStatusDescription":"Vez cidcaki tov keevi dulab hig peej
+                nuku iko hahke dujguja uvi afwa.",
+
+                "email":"kijroz@zitihke.tv"
+
+                }
+              output-schema:
+                $schema: http://json-schema.org/draft-04/schema#
+                type: object
+                properties:
+                  id:
+                    type: string
+                  firstName:
+                    type: string
+                  lastName:
+                    type: string
+                  licensePlate:
+                    type: string
+                  damageDescription:
+                    type: string
+                  claimStatus:
+                    type: string
+                  claimStatusDescription:
+                    type: string
+                  email:
+                    type: string
+                title: Parsed JSON
+              name: JSON Parser Parse
+          - response:
+              name: response 2
+              reply-maps:
+                - title: claim successfully retrieved
+                  status-code: 201
+                  map:
+                    $map: http://ibm.com/appconnect/map/v1
+                    input:
+                      - variable: CallableflowInvoke2
+                        $ref: '#/node-output/Callable flow Invoke 2/response/payload'
+                      - variable: JSONParserParse
+                        $ref: '#/node-output/JSON Parser Parse/response/payload'
+                      - variable: flowDetails
+                        $ref: '#/flowDetails'
+                      - variable: api
+                        $ref: '#/trigger/api/parameters'
+                    mappings:
+                      - claimStatus:
+                          template: '{{$JSONParserParse.claimStatus}}'
+                      - claimStatusDescription:
+                          template: '{{$JSONParserParse.claimStatusDescription}}'
+                      - damageDescription:
+                          template: '{{$JSONParserParse.damageDescription}}'
+                      - email:
+                          template: '{{$JSONParserParse.email}}'
+                      - firstName:
+                          template: '{{$JSONParserParse.firstName}}'
+                      - id:
+                          template: '{{$JSONParserParse.id}}'
+                      - lastName:
+                          template: '{{$JSONParserParse.lastName}}'
+                      - licensePlate:
+                          template: '{{$JSONParserParse.licensePlate}}'
+  name: eeiManageClaims
+models:
+  claim:
+    name: claim
+    plural: claim
+    properties:
+      id:
+        required: false
+        id: true
+        type: string
+      firstName:
+        required: false
+        id: false
+        type: string
+      lastName:
+        required: false
+        id: false
+        type: string
+      licensePlate:
+        required: false
+        id: false
+        type: string
+      damageDescription:
+        required: false
+        id: false
+        type: string
+      claimStatus:
+        required: false
+        id: false
+        type: string
+      claimStatusDescription:
+        required: false
+        id: false
+        type: string
+      email:
+        required: false
+        id: false
+        type: string
+    operations:
+      create: '#/integration/assemblies/assembly-1'
+      retrieve: '#/integration/assemblies/assembly-2'
+    description: ''
+x-ibm-configuration:
+  gateway: datapower-api-gateway
+  type: rest
+  phase: realized
+  enforced: true
+  testable: true
+  cors:
+    enabled: true
+  assembly:
+    execute:
+      - invoke:
+          title: Invoke flow
+          version: 2.0.0
+          verb: keep
+          target-url: $(app-connect-designer-url)$(request.path)
+          follow-redirects: false
+          timeout: 60
+          parameter-control:
+            type: blocklist
+          header-control:
+            type: blocklist
+          inject-proxy-headers: true
+          username: $(app-connect-designer-username)
+          password: $(app-connect-designer-password)

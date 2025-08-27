@@ -1,0 +1,39 @@
+{
+    "type": "record",
+    "namespace": "cp4i.example.com",
+    "name": "claim",
+    "fields": [
+        {
+            "name": "id",
+            "type": "string"
+        },
+        {
+            "name": "firstName",
+            "type": "string"
+        },
+        {
+            "name": "lastName",
+            "type": "string"
+        },
+        {
+            "name": "email",
+            "type": "string"
+        },
+        {
+            "name": "licensePlate",
+            "type": "string"
+        },
+        {
+            "name": "damageDescription",
+            "type": "string"
+        },
+        {
+            "name": "claimStatus",
+            "type": "string"
+        },
+        {
+            "name": "claimStatusDescription",
+            "type": "string"
+        }
+    ]
+}
