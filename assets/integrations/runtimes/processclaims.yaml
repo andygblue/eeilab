@@ -1,0 +1,37 @@
+apiVersion: appconnect.ibm.com/v1beta1
+kind: IntegrationRuntime
+metadata:
+  annotations:
+    appconnect.ibm.com/updating: 'false'
+  labels:
+    appconnect.ibm.com/designerapiflow: 'false'
+    appconnect.ibm.com/designereventflow: 'true'
+    appconnect.ibm.com/toolkitflow: 'true'
+    event-enabled-insurance.eei.canvas: 'true'
+  name: processclaims
+  namespace: eei
+spec:
+  barURL:
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeicaching.bar
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeiUpdateClaimCache.bar
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeiClaimProcessor.bar
+  configurations:
+    - barauth-empty
+    - enable-cache
+    - default-agentx
+    - claimconfig
+    - processclaims-ir-adminssl
+  license:
+    accept: true
+    license: L-KPRV-AUG9NC
+    use: CloudPakForIntegrationNonProductionFREE
+  logFormat: basic
+  template:
+    spec:
+      metadata:
+        annotations:
+          configuration-last-updated: claimconfig1752774955
+  version: '13.0'

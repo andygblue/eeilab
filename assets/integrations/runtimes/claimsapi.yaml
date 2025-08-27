@@ -1,0 +1,33 @@
+apiVersion: appconnect.ibm.com/v1beta1
+kind: IntegrationRuntime
+metadata:
+  annotations:
+    appconnect.ibm.com/updating: 'false'
+  labels:
+    appconnect.ibm.com/designerapiflow: 'true'
+    appconnect.ibm.com/designereventflow: 'false'
+    appconnect.ibm.com/toolkitflow: 'false'
+    event-enabled-insurance.eei.canvas: 'true'
+  name: claimsapi
+  namespace: eei
+spec:
+  barURL:
+    - >-
+      https://github.com/andygblue/agdemos/raw/refs/heads/main/EventEnabledInsurance/BarFiles/eeiManageClaims.bar
+  configurations:
+    - barauth-empty
+    - enable-cache
+    - default-agentx
+    - claimconfig
+    - claimsapi-ir-adminssl
+  license:
+    accept: true
+    license: L-KPRV-AUG9NC
+    use: CloudPakForIntegrationNonProductionFREE
+  logFormat: basic
+  template:
+    spec:
+      metadata:
+        annotations:
+          configuration-last-updated: claimconfig1752774955
+  version: '13.0'
