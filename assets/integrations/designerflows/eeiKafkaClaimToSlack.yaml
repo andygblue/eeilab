@@ -1,0 +1,96 @@
+$integration: http://ibm.com/appconnect/integration/v2/integrationFile
+integration:
+  type: trigger-action
+  trigger-interfaces:
+    trigger-interface-1:
+      type: event-trigger
+      connector-type: kafka
+      triggers:
+        CREATED:
+          assembly:
+            $ref: '#/integration/assemblies/assembly-1'
+          input-context:
+            data: message
+          options:
+            Topic: claimstatus
+            parentFilter:
+              Topic: claimstatus
+            subscription:
+              messageOffset: Latest
+              clientId: eeiToSlack
+              groupId: eeiSlackNotify
+          dynamicSchema:
+            id: 1
+            schemaLocation: AVRO_SCHEMA_REGISTRY
+            schemaName: claim
+            schemaRegistryName: default
+            schemaVersion: '1'
+            schema:
+              $schema: http://json-schema.org/draft-04/schema#
+              type: object
+              properties:
+                id:
+                  type: string
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                email:
+                  type: string
+                licensePlate:
+                  type: string
+                damageDescription:
+                  type: string
+                claimStatus:
+                  type: string
+                claimStatusDescription:
+                  type: string
+              required:
+                - id
+                - firstName
+                - lastName
+                - email
+                - licensePlate
+                - damageDescription
+                - claimStatus
+                - claimStatusDescription
+      account-name: claimsproducer
+  action-interfaces:
+    action-interface-1:
+      type: api-action
+      business-object: message
+      connector-type: slack
+      account-name: App Connect Trial
+      actions:
+        CREATE: {}
+  assemblies:
+    assembly-1:
+      assembly:
+        execute:
+          - create-action:
+              name: Slack Send message
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-1'
+              map:
+                mappings:
+                  - OBJECT_ID:
+                      template: C0817DTDLSZ
+                  - OBJECT_NAME:
+                      template: channel
+                  - text:
+                      template: >-
+                        Update from CP4I Event Enabled Insurance: Claim Id:
+                        {{$Trigger.Payload.id}} for user
+                        {{$Trigger.Payload.firstName}}
+                        {{$Trigger.Payload.lastName}} with license plate
+                        {{$Trigger.Payload.licensePlate}} has been updated to
+                        Status: {{$Trigger.Payload.claimStatus}},
+                        {{$Trigger.Payload.claimStatusDescription}}
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Trigger
+                    $ref: '#/trigger/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+  name: eeiKafkaClaimToSlack
+models: {}

@@ -1,0 +1,442 @@
+$integration: http://ibm.com/appconnect/integration/v2/integrationFile
+integration:
+  type: trigger-action
+  trigger-interfaces:
+    trigger-interface-1:
+      type: event-trigger
+      connector-type: streaming-connector-scheduler
+      triggers:
+        SCHEDULE:
+          assembly:
+            $ref: '#/integration/assemblies/assembly-1'
+          input-context:
+            data: scheduler
+          options:
+            subscription:
+              scheduleConfiguration:
+                interval:
+                  unit: minute
+                  value: 1
+                  runOnceOncheck: true
+                  days:
+                    - MON
+                    - TUE
+                    - WED
+                    - THU
+                    - FRI
+                    - SAT
+                    - SUN
+                  timeZone: UTC
+      account-name: Account 2
+  action-interfaces:
+    action-interface-1:
+      type: api-action
+      business-object: message
+      connector-type: mq
+      actions:
+        GETMESSAGE: {}
+      account-name: eeiclaimsput
+    action-interface-2:
+      type: api-action
+      business-object: message
+      connector-type: mq
+      account-name: eeiclaimsput
+      actions:
+        PUTMESSAGE: {}
+    action-interface-3:
+      type: api-action
+      business-object: message
+      connector-type: kafka
+      actions:
+        CREATE: {}
+      account-name: claimsproducer
+  assemblies:
+    assembly-1:
+      assembly:
+        execute:
+          - custom-action:
+              name: IBM MQ Get message from a queue
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-1'
+              action: GETMESSAGE
+              map:
+                mappings:
+                  - queueName:
+                      template: newclaims
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Trigger
+                    $ref: '#/trigger/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+          - parse:
+              parse-format: json
+              source:
+                template: '{{$IBMMQGetmessagefromaqueue.message}}'
+                input:
+                  - variable: Trigger
+                    $ref: '#/trigger/payload'
+                  - variable: IBMMQGetmessagefromaqueue
+                    $ref: >-
+                      #/node-output/IBM MQ Get message from a
+                      queue/response/payload
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+              sample-data: |-
+                {
+                    "id": "1",
+                    "firstName": "Herbert",
+                    "lastName": "Jacob",
+                    "email": "jh@example.com",
+                    "licensePlate": "afrirzehi",
+                    "damageDescription": "Looks like it was sat on by an elephant",
+                    "claimStatus": "Recieved",
+                    "claimStatusDescription": "We Have Recieved your claim."
+                }
+              output-schema:
+                $schema: http://json-schema.org/draft-04/schema#
+                type: object
+                properties:
+                  id:
+                    type: string
+                  firstName:
+                    type: string
+                  lastName:
+                    type: string
+                  email:
+                    type: string
+                  licensePlate:
+                    type: string
+                  damageDescription:
+                    type: string
+                  claimStatus:
+                    type: string
+                  claimStatusDescription:
+                    type: string
+                title: Parsed JSON Claim
+              name: JSON Parser Parse
+          - if:
+              branch:
+                - condition:
+                    '{{$JSONParserParse.claimStatus}}': Received
+                  execute: []
+                  map:
+                    mappings:
+                      - claimStatus:
+                          template: Approved
+                      - claimStatusDescription:
+                          template: >-
+                            Your Claim has been Approved - your car has been
+                            queued for repair.
+                    $map: http://ibm.com/appconnect/map/v1
+                    input:
+                      - variable: Trigger
+                        $ref: '#/trigger/payload'
+                      - variable: IBMMQGetmessagefromaqueue
+                        $ref: >-
+                          #/node-output/IBM MQ Get message from a
+                          queue/response/payload
+                      - variable: JSONParserParse
+                        $ref: '#/node-output/JSON Parser Parse/response/payload'
+                      - variable: flowDetails
+                        $ref: '#/flowDetails'
+                - condition:
+                    '{{$JSONParserParse.claimStatus}}': Approved
+                  execute: []
+                  map:
+                    $map: http://ibm.com/appconnect/map/v1
+                    input:
+                      - variable: Trigger
+                        $ref: '#/trigger/payload'
+                      - variable: IBMMQGetmessagefromaqueue
+                        $ref: >-
+                          #/node-output/IBM MQ Get message from a
+                          queue/response/payload
+                      - variable: JSONParserParse
+                        $ref: '#/node-output/JSON Parser Parse/response/payload'
+                      - variable: flowDetails
+                        $ref: '#/flowDetails'
+                    mappings:
+                      - claimStatus:
+                          template: Workshop
+                      - claimStatusDescription:
+                          template: Your car is now in the Workshop.
+                - condition:
+                    '{{$JSONParserParse.claimStatus}}': Workshop
+                  execute: []
+                  map:
+                    $map: http://ibm.com/appconnect/map/v1
+                    input:
+                      - variable: Trigger
+                        $ref: '#/trigger/payload'
+                      - variable: IBMMQGetmessagefromaqueue
+                        $ref: >-
+                          #/node-output/IBM MQ Get message from a
+                          queue/response/payload
+                      - variable: JSONParserParse
+                        $ref: '#/node-output/JSON Parser Parse/response/payload'
+                      - variable: flowDetails
+                        $ref: '#/flowDetails'
+                    mappings:
+                      - claimStatus:
+                          template: Repaired
+                      - claimStatusDescription:
+                          template: >-
+                            Your car has been Repaired and is on its way back to
+                            you.
+                - condition:
+                    '{{$JSONParserParse.claimStatus}}': Repaired
+                  execute: []
+                  map:
+                    mappings:
+                      - claimStatus:
+                          template: Complete
+                      - claimStatusDescription:
+                          template: >-
+                            Your claim is complete - we wish you future safe
+                            motoring.
+                    $map: http://ibm.com/appconnect/map/v1
+                    input:
+                      - variable: Trigger
+                        $ref: '#/trigger/payload'
+                      - variable: IBMMQGetmessagefromaqueue
+                        $ref: >-
+                          #/node-output/IBM MQ Get message from a
+                          queue/response/payload
+                      - variable: JSONParserParse
+                        $ref: '#/node-output/JSON Parser Parse/response/payload'
+                      - variable: flowDetails
+                        $ref: '#/flowDetails'
+                - condition:
+                    '{{$JSONParserParse.claimStatus}}': Complete
+                  execute: []
+                  completion-action:
+                    terminate:
+                      info:
+                        input:
+                          - variable: Trigger
+                            $ref: '#/trigger/payload'
+                          - variable: IBMMQGetmessagefromaqueue
+                            $ref: >-
+                              #/node-output/IBM MQ Get message from a
+                              queue/response/payload
+                          - variable: JSONParserParse
+                            $ref: '#/node-output/JSON Parser Parse/response/payload'
+                          - variable: flowDetails
+                            $ref: '#/flowDetails'
+                        message: End of Claim
+                        status-code: 200
+              else:
+                execute: []
+                completion-action:
+                  terminate:
+                    info:
+                      input:
+                        - variable: Trigger
+                          $ref: '#/trigger/payload'
+                        - variable: IBMMQGetmessagefromaqueue
+                          $ref: >-
+                            #/node-output/IBM MQ Get message from a
+                            queue/response/payload
+                        - variable: JSONParserParse
+                          $ref: '#/node-output/JSON Parser Parse/response/payload'
+                        - variable: flowDetails
+                          $ref: '#/flowDetails'
+                      message: No message received from claims queue
+                      status-code: 200
+              name: If
+              input:
+                - variable: Trigger
+                  $ref: '#/trigger/payload'
+                - variable: IBMMQGetmessagefromaqueue
+                  $ref: >-
+                    #/node-output/IBM MQ Get message from a
+                    queue/response/payload
+                - variable: JSONParserParse
+                  $ref: '#/node-output/JSON Parser Parse/response/payload'
+                - variable: flowDetails
+                  $ref: '#/flowDetails'
+              output-schema:
+                type: object
+                properties:
+                  claimStatus:
+                    type: string
+                  claimStatusDescription:
+                    type: string
+                required: []
+          - set-variable:
+              map:
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Trigger
+                    $ref: '#/trigger/payload'
+                  - variable: IBMMQGetmessagefromaqueue
+                    $ref: >-
+                      #/node-output/IBM MQ Get message from a
+                      queue/response/payload
+                  - variable: JSONParserParse
+                    $ref: '#/node-output/JSON Parser Parse/response/payload'
+                  - variable: If
+                    $ref: '#/node-output/If/response/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+                customSchemas:
+                  properties.`variable`:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      firstName:
+                        type: string
+                      lastName:
+                        type: string
+                      email:
+                        type: string
+                      licensePlate:
+                        type: string
+                      damageDescription:
+                        type: string
+                      claimStatus:
+                        type: string
+                      claimStatusDescription:
+                        type: string
+                mappings:
+                  - variable:
+                      mappings:
+                        - claimStatus:
+                            template: '{{$If.claimStatus}}'
+                        - claimStatusDescription:
+                            template: '{{$If.claimStatusDescription}}'
+                        - damageDescription:
+                            template: '{{$JSONParserParse.damageDescription}}'
+                        - email:
+                            template: '{{$JSONParserParse.email}}'
+                        - firstName:
+                            template: '{{$JSONParserParse.firstName}}'
+                        - id:
+                            template: '{{$JSONParserParse.id}}'
+                        - lastName:
+                            template: '{{$JSONParserParse.lastName}}'
+                        - licensePlate:
+                            template: '{{$JSONParserParse.licensePlate}}'
+              name: Set variable
+          - custom-action:
+              name: IBM MQ Put message on a queue
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-2'
+              action: PUTMESSAGE
+              map:
+                mappings:
+                  - message:
+                      template: '{{$Setvariable.variable}}'
+                  - messageType:
+                      template: TEXT
+                  - queueName:
+                      template: newclaims
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Trigger
+                    $ref: '#/trigger/payload'
+                  - variable: IBMMQGetmessagefromaqueue
+                    $ref: >-
+                      #/node-output/IBM MQ Get message from a
+                      queue/response/payload
+                  - variable: JSONParserParse
+                    $ref: '#/node-output/JSON Parser Parse/response/payload'
+                  - variable: If
+                    $ref: '#/node-output/If/response/payload'
+                  - variable: Setvariable
+                    $ref: '#/node-output/Set variable/response/payload'
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+          - create-action:
+              name: Kafka Send message
+              target:
+                $ref: '#/integration/action-interfaces/action-interface-3'
+              map:
+                mappings:
+                  - Payload:
+                      format:
+                        type: avro
+                        options:
+                          dynamicSchema:
+                            id: 1
+                            schemaLocation: AVRO_SCHEMA_REGISTRY
+                            schemaName: claim
+                            schemaRegistryName: default
+                            schemaVersion: '1'
+                      mappings:
+                        - claimStatus:
+                            template: '{{$Setvariable.variable.claimStatus}}'
+                        - claimStatusDescription:
+                            template: '{{$Setvariable.variable.claimStatusDescription}}'
+                        - damageDescription:
+                            template: '{{$Setvariable.variable.damageDescription}}'
+                        - email:
+                            template: '{{$Setvariable.variable.email}}'
+                        - firstName:
+                            template: '{{$Setvariable.variable.firstName}}'
+                        - id:
+                            template: '{{$Setvariable.variable.id}}'
+                        - lastName:
+                            template: '{{$Setvariable.variable.lastName}}'
+                        - licensePlate:
+                            template: '{{$Setvariable.variable.licensePlate}}'
+                  - Topic:
+                      template: claimstatus
+                  - clientId:
+                      template: ClaimProcessor
+                  - key:
+                      template: '{{$Setvariable.variable.id}}'
+                stringFormatSchemas:
+                  properties.`Payload`:
+                    $schema: http://json-schema.org/draft-04/schema#
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      firstName:
+                        type: string
+                      lastName:
+                        type: string
+                      email:
+                        type: string
+                      licensePlate:
+                        type: string
+                      damageDescription:
+                        type: string
+                      claimStatus:
+                        type: string
+                      claimStatusDescription:
+                        type: string
+                    required:
+                      - id
+                      - firstName
+                      - lastName
+                      - email
+                      - licensePlate
+                      - damageDescription
+                      - claimStatus
+                      - claimStatusDescription
+                $map: http://ibm.com/appconnect/map/v1
+                input:
+                  - variable: Trigger
+                    $ref: '#/trigger/payload'
+                  - variable: IBMMQGetmessagefromaqueue
+                    $ref: >-
+                      #/node-output/IBM MQ Get message from a
+                      queue/response/payload
+                  - variable: JSONParserParse
+                    $ref: '#/node-output/JSON Parser Parse/response/payload'
+                  - variable: If
+                    $ref: '#/node-output/If/response/payload'
+                  - variable: Setvariable
+                    $ref: '#/node-output/Set variable/response/payload'
+                  - variable: IBMMQPutmessageonaqueue
+                    $ref: >-
+                      #/node-output/IBM MQ Put message on a
+                      queue/response/payload
+                  - variable: flowDetails
+                    $ref: '#/flowDetails'
+  name: eeiClaimProcessor
+models: {}
